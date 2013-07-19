@@ -6,6 +6,11 @@ set -e
 #print out the commands executed in this script
 #set -x
 
+
+thisdir=`pwd`
+
+
+
 # need to have a branch name specified
 function usage() {
   echo "Usage: ./update-live-branch.sh -t <tag name> -r <TSB_connect repository location> -e <TSB_connect-extras location> -n <release note location>"
@@ -47,7 +52,6 @@ function do_copying() {
   # find out the pom version
   version=`cat pom.xml | grep '<version>' | head -n1 | sed 's/\(<version>\)\(.*\)\(<\/version>\)/\2/' | xargs echo`
   #version=`mvn -pl . help:evaluate -Dexpression=project.version | grep -v "^\["`
-  cd -
 
   if [[ -z "$version" ]]
   then
@@ -56,7 +60,8 @@ function do_copying() {
   fi
 
   echo "Archiving old \"live\" branches..."
-  archivedbranchname="archived_live_""$version" 
+  archivedbranchname="archived_live_""$version"
+  cd $thisdir 
   ./archive-branch.sh -b live -r $repositorylocation -n $archivedbranchname $forcedoption
   ./archive-branch.sh -b live -r $extraslocation -n $archivedbranchname $forcedoption
 
@@ -75,45 +80,38 @@ function do_copying() {
 
 
   git checkout $branchname
-  cd -
 
   echo "Checking out tag \"$branchname\" of the repository \"$extraslocation\""
   cd $extraslocation
   git fetch
-
-
   if [[ -z "`git tag -l | grep -e "^$branchname$"`" ]]
   then
     echo "Could not find tag \"$branchname\" in repository \"$extraslocation\""
     exit 1
   fi
-
-
   git checkout $branchname
-  cd -
 
 
   cd $repositorylocation
 
 
   echo "Creating new \"live\" branch for repository \"$repositorylocation\""
-#  git checkout -b live
-#  git push origin live
+  git checkout -b live
+  git push origin live
 
   echo "Copying Release Note from \"$releasenotelocation\" to \"$repositorylocation\""
-  cp "$releasenotelocation" . 
+  cp "$releasenotelocation" $repositorylocation
 
 
   echo "Committing Release Note"
-#  git commit -am 'Added release note to new Live branch'
-#  git push origin live
-  cd -
+  git add *
+  git commit -am 'Added release note to new Live branch'
+  git push origin live
 
 echo "Creating new \"live\" branch for repository \"$extraslocation\""
   cd $extraslocation
-#  git checkout -b live
-#  git push origin live
-  cd -
+  git checkout -b live
+  git push origin live
 }
 
 if [ $forced ] 
