@@ -50,10 +50,10 @@ cd -
 function do_archiving() {
   echo "Archiving \"$branchname\" branch as \"$archivedbranchname\" for repository \"$repositorylocation\""
   cd $repositorylocation
-  #git checkout -b $archivedbranchname
-  #git push origin $archivedbranchname
-  #git push origin :branchname
-  #git branch -d :branchname
+  git checkout -b $archivedbranchname
+  git push origin $archivedbranchname
+  git push origin :$branchname
+  git branch -d $branchname
   
   cd -
 }
