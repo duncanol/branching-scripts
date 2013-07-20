@@ -42,6 +42,13 @@ echo ""
 # check out the desired branch and ensure it is up-to-date
 cd $repositorylocation
 git fetch
+
+if [[ -z "`git branch -al | cut -c3- | sed 's/remotes\/origin\///' | grep -e "^$branchname$"`" ]]
+then
+  echo "Could not find branch \"$branchname\" in repository \"$repositorylocation\""
+  exit
+fi
+
 git checkout $branchname
 git merge origin/$branchname
 cd -

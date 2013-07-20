@@ -4,7 +4,7 @@
 set -e
 
 #print out the commands executed in this script
-#set -x
+set -x
 
 
 thisdir=`pwd`
@@ -42,66 +42,89 @@ echo "UPDATING LIVE BRANCH BASED UPON \"$branchname\""
 echo "==============================="
 echo ""
 
+
+function checkout-branch() {
+
+  cd $1
+  git fetch
+  
+  if [[ -z "`git branch -al | cut -c3- | sed 's/remotes\/origin\///' | grep -e "^$2$"`" ]]
+  then
+    echo "Could not find branch \"$2\" in repository \"$1\""
+    return 1
+  fi
+
+  git checkout $2
+  git merge origin/$2
+  return 0 
+}
+
+function checkout-tag() {
+  
+  cd $1
+  git fetch
+  
+  if [[ -z "`git tag -l | grep -e "^$2$"`" ]]
+  then
+    echo "Could not find tag \"$2\" in repository \"$1\""
+    return 1
+  fi
+
+  git checkout $2
+  return 0 
+}
+
+# check that the tag exists in both repositories before we continue
+function check-desired-tag-exists() {
+
+  checkout-tag $repositorylocation $branchname
+  checkout-tag $extraslocation $branchname
+}
+
+check-desired-tag-exists
+
+
+
+
 function do_copying() {
 
-  echo "Finding pom version of \"live\" branch..."
-  cd $repositorylocation
-  git fetch
-  git checkout live
-  git merge origin/live
-  # find out the pom version
-  version=`cat pom.xml | grep '<version>' | head -n1 | sed 's/\(<version>\)\(.*\)\(<\/version>\)/\2/' | xargs echo`
-  #version=`mvn -pl . help:evaluate -Dexpression=project.version | grep -v "^\["`
+  set +e ; checkout-branch $repositorylocation live ; set -e
 
-  if [[ -z "$version" ]]
+  if [ $? ]
   then
-    echo "Could not determine a version number for the \"live\" branch"
-    exit 1
+
+    echo "Finding pom version of \"live\" branch..."
+    # find out the pom version
+    version=`cat pom.xml | grep '<version>' | head -n1 | sed 's/\(<version>\)\(.*\)\(<\/version>\)/\2/' | xargs echo`
+    #version=`mvn -pl . help:evaluate -Dexpression=project.version | grep -v "^\["`
+
+    if [[ -z "$version" ]]
+    then
+      echo "Could not determine a version number for the \"live\" branch"
+      exit 1
+    fi
+
+    echo "Archiving old \"live\" branches..."
+    archivedbranchname="archived_live_""$version"
+    cd $thisdir 
+    ./archive-branch.sh -b live -r $repositorylocation -n $archivedbranchname $forcedoption
   fi
 
-  echo "Archiving old \"live\" branches..."
-  archivedbranchname="archived_live_""$version"
-  cd $thisdir 
-  ./archive-branch.sh -b live -r $repositorylocation -n $archivedbranchname $forcedoption
-  ./archive-branch.sh -b live -r $extraslocation -n $archivedbranchname $forcedoption
-
-  echo "Creating latest \"live\" branch based upon tag \"$branchname\"..."
-
-  # check out the desired branch and ensure it is up-to-date
-  echo "Checking out tag \"$branchname\" of the repository \"$repositorylocation\""
-  cd $repositorylocation
-  git fetch
-
-  if [[ -z "`git tag -l | grep -e "^$branchname$"`" ]]
+  set +e ; checkout-branch $extraslocation live ; set -e
+  if [ $? ]
   then
-    echo "Could not find tag \"$branchname\" in repository \"$repositorylocation\""
-    exit 1
+    cd $thisdir
+    ./archive-branch.sh -b live -r $extraslocation -n $archivedbranchname $forcedoption
   fi
-
-
-  git checkout $branchname
-
-  echo "Checking out tag \"$branchname\" of the repository \"$extraslocation\""
-  cd $extraslocation
-  git fetch
-  if [[ -z "`git tag -l | grep -e "^$branchname$"`" ]]
-  then
-    echo "Could not find tag \"$branchname\" in repository \"$extraslocation\""
-    exit 1
-  fi
-  git checkout $branchname
-
-
-  cd $repositorylocation
 
 
   echo "Creating new \"live\" branch for repository \"$repositorylocation\""
+  checkout-tag $repositorylocation $branchname
+  cd $repositorylocation 
   git checkout -b live
-  git push origin live
 
   echo "Copying Release Note from \"$releasenotelocation\" to \"$repositorylocation\""
   cp "$releasenotelocation" $repositorylocation
-
 
   echo "Committing Release Note"
   git add *
@@ -109,6 +132,7 @@ function do_copying() {
   git push origin live
 
 echo "Creating new \"live\" branch for repository \"$extraslocation\""
+  checkout-tag $repositorylocation $branchname
   cd $extraslocation
   git checkout -b live
   git push origin live
