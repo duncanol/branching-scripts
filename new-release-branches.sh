@@ -89,7 +89,7 @@ function update-main-repo-pom-versions() {
   currentversion=`mvn -pl . help:evaluate -Dexpression=project.version | grep -v "^\["`
   mvn versions:set -DnewVersion=$3
   find . -name '*.versionsBackup' | xargs rm
-  git commit -am "Updating POM versions from $currentversion to $pomversion"
+  git commit -am "Updating POM versions from $currentversion to $3"
   git push origin $2
 }
 
