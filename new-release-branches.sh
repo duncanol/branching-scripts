@@ -24,7 +24,7 @@ function usage() {
 while getopts fv:n:r:e: opt; do
   case $opt in
     f) forced=true; forcedoption="-f" ;;
-    n) branchname=$OPTARG ;;
+    n) branchname=$OPTARG ; uatbranchname="UAT_$branchname" ; qabranchname="QA_$branchname" ;;
     v) pomversion=$OPTARG ; snapshotversion="$pomversion-SNAPSHOT" ;;
     r) repositorylocation=$OPTARG ;;
     e) extraslocation=$OPTARG ;;
@@ -84,19 +84,20 @@ function new-branch() {
 
 
 function update-main-repo-pom-versions() {
-  cd $repositorylocation
+  checkout-branch $1 $2
+  cd $1
   currentversion=`mvn -pl . help:evaluate -Dexpression=project.version | grep -v "^\["`
-  mvn versions:set -DnewVersion=$pomversion
+  mvn versions:set -DnewVersion=$3
   find . -name '*.versionsBackup' | xargs rm
   git commit -am "Updating POM versions from $currentversion to $pomversion"
-  git push origin UAT_$branchname
+  git push origin $2
 }
 
 
 function tag-branch() {
   checkout-branch $1 $2
   git tag $3
-  git push --tags 
+  git push origin $3
 }
 
 
@@ -107,11 +108,38 @@ function tag-branch() {
 
 
 function do-work() {
-  new-branch $repositorylocation live UAT_$branchname
-  new-branch $extraslocation live UAT_$branchname
-  update-main-repo-pom-versions
-  tag-branch $repositorylocation UAT_$branchname $pomversion
-  tag-branch $extraslocation UAT_$branchname $pomversion
+
+  echo ""
+
+  echo "Creating new UAT branch \"$uatbranchname\" for repository \"$repositorylocation\"..."
+  new-branch $repositorylocation live $uatbranchname
+
+  echo "Creating new UAT branch \"$uatbranchname\" for repository \"$extraslocation\"..."
+  new-branch $extraslocation live $uatbranchname
+
+  echo "Updating POM versions to \"$pomversion\" in repository \"$repositorylocation\"..."
+  update-main-repo-pom-versions $repositorylocation $uatbranchname $pomversion
+
+  echo "Tagging UAT branch \"$uatbranchname\" in repository \"$repositorylocation\" as \"$pomversion\"..."
+  tag-branch $repositorylocation $uatbranchname $pomversion
+
+  echo "Tagging UAT branch \"$uatbranchname\" in repository \"$extraslocation\" as \"$pomversion\"..."
+  tag-branch $extraslocation $uatbranchname $pomversion
+
+  echo "Creating new QA branch \"$qabranchname\" for repository \"$repositorylocation\"..."
+  new-branch $repositorylocation $uatbranchname $qabranchname
+
+  echo "Creating new QA branch \"$qabranchname\" for repository \"$extraslocation\"..."
+  new-branch $extraslocation $uatbranchname $qabranchname
+
+  echo "Updating POM versions to \"$snapshotversion\" in repository \"$repositorylocation\"..."
+  update-main-repo-pom-versions $repositorylocation $qabranchname $snapshotversion
+
+  echo "Tagging QA branch \"$qabranchname\" in repository \"$repositorylocation\" as \"$snapshotversion\"..."
+  tag-branch $repositorylocation $qabranchname $snapshotversion
+
+  echo "Tagging QA branch \"$qabranchname\" in repository \"$extraslocation\" as \"$snapshotversion\"..."
+  tag-branch $extraslocation $qabranchname $snapshotversion
 }
 
 
@@ -126,7 +154,7 @@ then
   do-work
 else
   echo ""
-  echo "You are about to create new release branches based on live.  This will create a new UAT branch called \"UAT_$branchname\" at pom version \"$pomversion\" and a QA branch called \"QA_$branchname\" at pom version \"$snapshotversion\".  These branches will then be tagged as \"$pomversion\" and \"$snapshotversion\" respectively."
+  echo "You are about to create new release branches based on live.  This will create a new UAT branch called \"$uatbranchname\" at pom version \"$pomversion\" and a QA branch called \"$qabranchname\" at pom version \"$snapshotversion\".  These branches will then be tagged as \"$pomversion\" and \"$snapshotversion\" respectively."
   echo ""
   echo "This will be performed to the repositories located at \"$repositorylocation\" and \"$extraslocation\""
   echo ""
